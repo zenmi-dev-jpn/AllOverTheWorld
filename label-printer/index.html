@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ラベルメーカー - Niimbot 50×30mm</title>
+<meta name="description" content="Niimbotプリンター用 50×30mmラベルのPDFを作成するアプリ">
+<meta name="theme-color" content="#2563eb">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+<script src="lib/fabric.min.js"></script>
+<script src="lib/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<header class="app-header">
+  <h1>ラベルメーカー <span class="badge">50×30mm</span></h1>
+  <div class="header-actions">
+    <button id="btnBatchToggle" class="btn btn-ghost">連続印刷モード</button>
+    <button id="btnShare" class="btn btn-primary">Niimbotへ送る (PDF)</button>
+  </div>
+</header>
+
+<main class="app-main">
+
+  <aside class="toolbar">
+    <button id="addText" class="tool-btn" title="テキストを追加">
+      <span class="icon">T</span><span class="label">テキスト</span>
+    </button>
+    <button id="addImageBtn" class="tool-btn" title="画像を追加">
+      <span class="icon">🖼</span><span class="label">画像</span>
+    </button>
+    <input type="file" id="imageInput" accept="image/*" hidden>
+    <button id="addRect" class="tool-btn" title="四角形を追加">
+      <span class="icon">▭</span><span class="label">四角形</span>
+    </button>
+    <button id="addLine" class="tool-btn" title="線を追加">
+      <span class="icon">╱</span><span class="label">線</span>
+    </button>
+    <button id="addCircle" class="tool-btn" title="円を追加">
+      <span class="icon">◯</span><span class="label">円</span>
+    </button>
+    <div class="tool-sep"></div>
+    <button id="bringFront" class="tool-btn" title="最前面へ">
+      <span class="icon">⬆</span><span class="label">前面</span>
+    </button>
+    <button id="sendBack" class="tool-btn" title="最背面へ">
+      <span class="icon">⬇</span><span class="label">背面</span>
+    </button>
+    <button id="duplicateObj" class="tool-btn" title="複製">
+      <span class="icon">⧉</span><span class="label">複製</span>
+    </button>
+    <button id="deleteObj" class="tool-btn danger" title="削除">
+      <span class="icon">✕</span><span class="label">削除</span>
+    </button>
+  </aside>
+
+  <section class="canvas-area">
+    <div class="canvas-wrap">
+      <canvas id="labelCanvas" width="500" height="300"></canvas>
+    </div>
+    <p class="hint">50mm × 30mm（実寸表示） ・ オブジェクトをタップ／ドラッグして編集</p>
+  </section>
+
+  <aside class="side-panel" id="sidePanel">
+
+    <div class="panel-block" id="propsPanel">
+      <h2>プロパティ</h2>
+      <p class="empty-msg" id="propsEmpty">オブジェクトを選択してください</p>
+
+      <div id="textProps" class="props-group hidden">
+        <label>テキスト内容
+          <textarea id="propText" rows="2" placeholder="テキストを入力（{{名前}} のようにプレースホルダーも使えます）"></textarea>
+        </label>
+        <label>フォント
+          <select id="propFont">
+            <option value="'Noto Sans JP', sans-serif">ゴシック体</option>
+            <option value="'Noto Serif JP', serif">明朝体</option>
+            <option value="monospace">等幅</option>
+            <option value="cursive">手書き風</option>
+          </select>
+        </label>
+        <div class="row">
+          <label class="small">サイズ
+            <input type="number" id="propFontSize" min="4" max="60" value="14">
+          </label>
+          <label class="small">行間
+            <input type="number" id="propLineHeight" min="0.8" max="3" step="0.1" value="1.1">
+          </label>
+        </div>
+        <div class="row">
+          <button id="propBold" class="toggle-btn" title="太字"><b>B</b></button>
+          <button id="propItalic" class="toggle-btn" title="斜体"><i>I</i></button>
+          <button id="propAlignL" class="toggle-btn" title="左揃え">⯇</button>
+          <button id="propAlignC" class="toggle-btn" title="中央揃え">≡</button>
+          <button id="propAlignR" class="toggle-btn" title="右揃え">⯈</button>
+        </div>
+        <label>文字色
+          <input type="color" id="propColor" value="#000000">
+        </label>
+      </div>
+
+      <div id="shapeProps" class="props-group hidden">
+        <label>塗りつぶし色
+          <input type="color" id="propFill" value="#000000">
+          <label class="checkbox-inline"><input type="checkbox" id="propFillNone"> 塗りなし</label>
+        </label>
+        <label>枠線色
+          <input type="color" id="propStroke" value="#000000">
+        </label>
+        <label>枠線の太さ
+          <input type="number" id="propStrokeWidth" min="0" max="10" value="1" step="0.5">
+        </label>
+      </div>
+
+      <div class="props-group" id="commonTransform">
+        <div class="row">
+          <label class="small">X (mm)<input type="number" id="propX" step="0.5"></label>
+          <label class="small">Y (mm)<input type="number" id="propY" step="0.5"></label>
+        </div>
+        <div class="row">
+          <label class="small">幅 (mm)<input type="number" id="propW" step="0.5"></label>
+          <label class="small">高さ (mm)<input type="number" id="propH" step="0.5"></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-block" id="batchPanel">
+      <h2>連続印刷データ</h2>
+      <p class="hint-sm">1行目はヘッダー（列名）。テキストの中で <code>{{列名}}</code> と書くと、その列の値に置き換わります。Excel/スプレッドシートからそのまま貼り付けできます（タブ・カンマ区切り対応）。</p>
+      <textarea id="batchData" rows="6" placeholder="名前,会社
+田中 太郎,〇〇株式会社
+鈴木 花子,△△商事"></textarea>
+      <div class="row">
+        <button id="parseBatch" class="btn btn-ghost small">データを読み込む</button>
+        <span id="batchStatus" class="hint-sm"></span>
+      </div>
+      <div id="placeholderList" class="chip-list"></div>
+    </div>
+
+    <div class="panel-block">
+      <h2>PDF書き出し</h2>
+      <button id="exportSingle" class="btn btn-primary wide">このラベルをPDF保存</button>
+      <button id="exportBatch" class="btn btn-secondary wide" disabled>全件まとめてPDF保存</button>
+    </div>
+
+  </aside>
+</main>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="js/app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
