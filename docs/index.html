@@ -16,7 +16,11 @@
 <body>
 
 <header class="app-header">
-  <h1>ラベルメーカー <span class="badge">50×30mm</span></h1>
+  <h1>ラベルメーカー</h1>
+  <div class="orient-toggle" id="orientToggle" role="group" aria-label="用紙の向き">
+    <button type="button" class="orient-btn active" data-w="50" data-h="30">横 50×30</button>
+    <button type="button" class="orient-btn" data-w="30" data-h="50">縦 30×50</button>
+  </div>
   <div class="header-actions">
     <button id="btnBatchToggle" class="btn btn-ghost">連続印刷モード</button>
     <button id="btnShare" class="btn btn-primary">Niimbotへ送る (PDF)</button>
@@ -61,7 +65,7 @@
     <div class="canvas-wrap">
       <canvas id="labelCanvas" width="500" height="300"></canvas>
     </div>
-    <p class="hint">50mm × 30mm（実寸表示） ・ オブジェクトをタップ／ドラッグして編集</p>
+    <p class="hint"><span id="hintSize">50mm × 30mm</span>（実寸表示） ・ オブジェクトをタップ／ドラッグして編集</p>
   </section>
 
   <aside class="side-panel" id="sidePanel">

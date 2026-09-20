@@ -2,8 +2,8 @@
 (() => {
   'use strict';
 
-  const MM_W = 50;
-  const MM_H = 30;
+  let MM_W = 50;
+  let MM_H = 30;
   const MM_TO_PX = 10; // 編集キャンバスの解像度: 1mm = 10px
 
   const canvas = new fabric.Canvas('labelCanvas', {
@@ -36,6 +36,34 @@
     canvas.setDimensions({ width: nativeW * scale, height: nativeH * scale }, { cssOnly: true });
   }
   window.addEventListener('resize', fitCanvasToWrapper);
+
+  // ---------- 用紙の向き（横/縦） ----------
+
+  function setOrientation(w, h) {
+    if (MM_W === w && MM_H === h) return;
+    const hadObjects = canvas.getObjects().length > 0;
+    MM_W = w;
+    MM_H = h;
+    canvas.setDimensions({ width: MM_W * MM_TO_PX, height: MM_H * MM_TO_PX });
+    canvas.requestRenderAll();
+    fitCanvasToWrapper();
+
+    document.querySelectorAll('.orient-btn').forEach((btn) => {
+      btn.classList.toggle('active', parseFloat(btn.dataset.w) === w && parseFloat(btn.dataset.h) === h);
+    });
+    const hintSize = document.getElementById('hintSize');
+    if (hintSize) hintSize.textContent = `${w}mm × ${h}mm`;
+
+    if (hadObjects) {
+      showToast('用紙の向きを変更しました。はみ出した部分は位置を調整してください');
+    }
+  }
+
+  document.getElementById('orientToggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('.orient-btn');
+    if (!btn) return;
+    setOrientation(parseFloat(btn.dataset.w), parseFloat(btn.dataset.h));
+  });
 
   function disableRotation(obj) {
     obj.lockRotation = true;
@@ -467,12 +495,14 @@
 
   function buildPdf(rows) {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: 'mm', format: [MM_W, MM_H], orientation: 'landscape' });
+    // カスタムサイズは向きが自動判定されず崩れることがあるため、現在の縦横に合わせて明示する
+    const pageOrientation = MM_W >= MM_H ? 'landscape' : 'portrait';
+    const doc = new jsPDF({ unit: 'mm', format: [MM_W, MM_H], orientation: pageOrientation });
     const objects = canvas.getObjects();
     const dataRows = rows && rows.length ? rows : [null];
 
     dataRows.forEach((row, i) => {
-      if (i > 0) doc.addPage([MM_W, MM_H], 'landscape');
+      if (i > 0) doc.addPage([MM_W, MM_H], pageOrientation);
       objects.forEach((obj) => drawObjectToPdf(doc, obj, row));
     });
     return doc;

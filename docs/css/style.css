@@ -55,6 +55,32 @@ button, input, select, textarea {
   font-weight: 600;
 }
 
+.orient-toggle {
+  display: flex;
+  background: #eef1f6;
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.orient-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.orient-btn.active {
+  background: #fff;
+  color: var(--primary);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
 .header-actions {
   display: flex;
   gap: 8px;
@@ -303,6 +329,11 @@ button, input, select, textarea {
   .app-header h1 {
     font-size: 14px;
     white-space: nowrap;
+  }
+  .orient-toggle {
+    order: 3;
+    flex: 1 0 100%;
+    justify-content: center;
   }
   .header-actions {
     flex: 1 0 100%;
