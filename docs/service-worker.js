@@ -2,18 +2,26 @@
 // 古いキャッシュを使い続けてしまう問題があった。CACHE_NAMEを変えて古いキャッシュを
 // 破棄しつつ、HTML/CSS/JSはネットワーク優先（オフライン時のみキャッシュにフォールバック）
 // に変更し、以後の更新が確実に反映されるようにする。
-const CACHE_NAME = 'label-maker-v2';
+const CACHE_NAME = 'label-maker-v3';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.json',
   './css/style.css',
+  './css/fonts.css',
   './js/app.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
   './lib/fabric.min.js',
   './lib/jspdf.umd.min.js',
+  './fonts/noto-sans-jp-400.woff2',
+  './fonts/noto-sans-jp-700.woff2',
+  './fonts/noto-serif-jp-400.woff2',
+  './fonts/noto-serif-jp-700.woff2',
+  './fonts/mplus-rounded-1c-400.woff2',
+  './fonts/mplus-rounded-1c-700.woff2',
+  './fonts/yusei-magic-400.woff2',
 ];
 
 self.addEventListener('install', (event) => {
@@ -35,7 +43,7 @@ self.addEventListener('activate', (event) => {
 // 中身が変わらない同梱ライブラリ・アイコンだけキャッシュ優先（高速化）。
 // それ以外（index.html / css / js）は毎回ネットワークから取りにいき、
 // オフラインの時だけキャッシュにフォールバックする。
-const CACHE_FIRST_PATTERNS = [/\/lib\//, /\/icons\//];
+const CACHE_FIRST_PATTERNS = [/\/lib\//, /\/icons\//, /\/fonts\//];
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;

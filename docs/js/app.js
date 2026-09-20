@@ -39,6 +39,20 @@
   function px2mm(px) { return px / MM_TO_PX; }
   function mm2px(mm) { return mm * MM_TO_PX; }
 
+  // Canvas(2D)へのテキスト描画は、Webフォント(@font-face)の読み込み完了を自動では待ってくれない。
+  // 読み込み前に描画するとフォールバック書体のまま固まってしまうため、明示的にロードしてから
+  // 描き直す。document.fonts が使えないブラウザでは何もしない（フォールバック表示のまま）。
+  if (document.fonts && document.fonts.load) {
+    const preloads = [
+      '400 16px "Noto Sans JP"', '700 16px "Noto Sans JP"',
+      '400 16px "Noto Serif JP"', '700 16px "Noto Serif JP"',
+      '400 16px "M PLUS Rounded 1c"', '700 16px "M PLUS Rounded 1c"',
+      '400 16px "Yusei Magic"',
+    ];
+    Promise.all(preloads.map((f) => document.fonts.load(f).catch(() => {})))
+      .then(() => canvas.requestRenderAll());
+  }
+
   // 画面幅に合わせてキャンバスの表示サイズだけを縮小（内部の描画解像度・mm座標はそのまま）
   function fitCanvasToWrapper() {
     const wrap = document.querySelector('.canvas-wrap');
