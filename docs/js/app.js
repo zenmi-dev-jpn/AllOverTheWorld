@@ -95,12 +95,6 @@
     setOrientation(parseFloat(btn.dataset.w), parseFloat(btn.dataset.h));
   });
 
-  function disableRotation(obj) {
-    obj.lockRotation = true;
-    obj.setControlsVisibility({ mtr: false });
-    return obj;
-  }
-
   function centerPosition(w, h) {
     return {
       left: Math.max(0, (canvas.getWidth() - w) / 2),
@@ -234,7 +228,7 @@
   function loadHistoryState(state) {
     suspendHistory = true;
     canvas.loadFromJSON(state, () => {
-      canvas.getObjects().forEach((o) => { disableRotation(o); assignLayerId(o); });
+      canvas.getObjects().forEach((o) => assignLayerId(o));
       canvas.discardActiveObject();
       canvas.requestRenderAll();
       fitCanvasToWrapper();
@@ -299,7 +293,6 @@
       lineHeight: 1.1,
       editable: true,
     });
-    disableRotation(obj);
     canvas.add(obj).setActiveObject(obj);
     canvas.requestRenderAll();
   });
@@ -314,7 +307,6 @@
       stroke: '#000000',
       strokeWidth: 2,
     });
-    disableRotation(obj);
     canvas.add(obj).setActiveObject(obj);
     canvas.requestRenderAll();
   });
@@ -329,7 +321,6 @@
       stroke: '#000000',
       strokeWidth: 2,
     });
-    disableRotation(obj);
     canvas.add(obj).setActiveObject(obj);
     canvas.requestRenderAll();
   });
@@ -340,7 +331,6 @@
       stroke: '#000000',
       strokeWidth: 2,
     });
-    disableRotation(obj);
     canvas.add(obj).setActiveObject(obj);
     canvas.requestRenderAll();
   });
@@ -361,7 +351,6 @@
           scaleX: scale,
           scaleY: scale,
         });
-        disableRotation(img);
         canvas.add(img).setActiveObject(img);
         canvas.requestRenderAll();
       }, { crossOrigin: 'anonymous' });
@@ -393,7 +382,6 @@
     if (!obj) return;
     obj.clone((clone) => {
       clone.set({ left: obj.left + 10, top: obj.top + 10 });
-      disableRotation(clone);
       canvas.add(clone).setActiveObject(clone);
       canvas.requestRenderAll();
     });
@@ -447,6 +435,8 @@
   const propY = document.getElementById('propY');
   const propW = document.getElementById('propW');
   const propH = document.getElementById('propH');
+  const propAngle = document.getElementById('propAngle');
+  const propAngleReset = document.getElementById('propAngleReset');
 
   let syncing = false;
 
@@ -522,6 +512,7 @@
     propY.value = px2mm(obj.top).toFixed(1);
     propW.value = px2mm(obj.width * obj.scaleX).toFixed(1);
     propH.value = px2mm(obj.height * obj.scaleY).toFixed(1);
+    propAngle.value = Math.round(obj.angle || 0);
 
     syncing = false;
   }
@@ -577,6 +568,9 @@
     const mm = parseFloat(propH.value) || 1;
     obj.set('scaleY', mm2px(mm) / obj.height);
   }));
+
+  propAngle.addEventListener('input', withActive((obj) => obj.set('angle', parseFloat(propAngle.value) || 0)));
+  propAngleReset.addEventListener('click', withActive((obj) => obj.set('angle', 0)));
 
   canvas.on('text:changed', () => {
     if (!syncing) propText.value = canvas.getActiveObject().text;
@@ -659,32 +653,53 @@
   // エディタ表示と完全に一致する見た目を保証する（サーマルラベル印刷では十分な解像度）。
   const TEXT_EXPORT_MULTIPLIER = 3; // 10px/mm(編集解像度) x 3 = 30px/mm ≈ 760dpi 相当
 
+  // 回転したオブジェクトの4隅（ローカル座標: 中心原点、-w/2..w/2）を、
+  // 変換行列で絶対キャンバス座標に変換してmmにしたもの。ベクター図形の回転描画に使う。
+  function rotatedCornersMm(obj) {
+    const w = obj.width;
+    const h = obj.height;
+    const matrix = obj.calcTransformMatrix();
+    const local = [
+      { x: -w / 2, y: -h / 2 },
+      { x: w / 2, y: -h / 2 },
+      { x: w / 2, y: h / 2 },
+      { x: -w / 2, y: h / 2 },
+    ];
+    return local.map((p) => {
+      const abs = fabric.util.transformPoint(p, matrix);
+      return { x: px2mm(abs.x), y: px2mm(abs.y) };
+    });
+  }
+
   function drawObjectToPdf(doc, obj, row) {
-    if (obj.type === 'textbox') {
-      const originalText = obj.text;
-      if (row) {
+    if (obj.type === 'textbox' || obj.type === 'image') {
+      let originalText = null;
+      if (obj.type === 'textbox' && row) {
+        originalText = obj.text;
         obj.set('text', applyPlaceholders(originalText, row));
         obj.setCoords();
       }
-      const w = px2mm(obj.width * obj.scaleX);
-      const h = px2mm(obj.height * obj.scaleY);
-      if (w > 0 && h > 0 && obj.text.trim().length > 0) {
-        const x = px2mm(obj.left);
-        const y = px2mm(obj.top);
-        const dataUrl = obj.toDataURL({ format: 'png', multiplier: TEXT_EXPORT_MULTIPLIER });
-        doc.addImage(dataUrl, 'PNG', x, y, w, h);
+      const hasContent = obj.type === 'image' || obj.text.trim().length > 0;
+      if (hasContent) {
+        // toDataURL は現在の angle を画像に焼き込んで出力するため、
+        // 配置先も「回転後」の軸並行バウンディングボックス(getBoundingRect)に合わせる。
+        const rect = obj.getBoundingRect(true, true);
+        const w = px2mm(rect.width);
+        const h = px2mm(rect.height);
+        if (w > 0 && h > 0) {
+          const x = px2mm(rect.left);
+          const y = px2mm(rect.top);
+          const multiplier = obj.type === 'textbox' ? TEXT_EXPORT_MULTIPLIER : 1;
+          const dataUrl = obj.toDataURL({ format: 'png', multiplier });
+          doc.addImage(dataUrl, 'PNG', x, y, w, h);
+        }
       }
-      if (row) {
+      if (originalText !== null) {
         obj.set('text', originalText);
         obj.setCoords();
       }
       return;
     }
-
-    const x = px2mm(obj.left);
-    const y = px2mm(obj.top);
-    const w = px2mm(obj.width * obj.scaleX);
-    const h = px2mm(obj.height * obj.scaleY);
 
     if (obj.type === 'rect') {
       const hasFill = obj.fill && obj.fill !== 'transparent';
@@ -693,11 +708,21 @@
       if (hasFill) doc.setFillColor(obj.fill);
       if (hasStroke) { doc.setDrawColor(obj.stroke); doc.setLineWidth(px2mm(obj.strokeWidth)); }
       const style = hasFill && hasStroke ? 'FD' : hasFill ? 'F' : 'S';
-      doc.rect(x, y, w, h, style);
+      const [tl, tr, br, bl] = rotatedCornersMm(obj);
+      doc.lines(
+        [[tr.x - tl.x, tr.y - tl.y], [br.x - tr.x, br.y - tr.y], [bl.x - br.x, bl.y - br.y]],
+        tl.x, tl.y, [1, 1], style, true
+      );
       return;
     }
 
     if (obj.type === 'circle') {
+      // 円は自身の中心を軸に回転するため、中心・半径とも角度の影響を受けない
+      // （scaleXとscaleYが異なる「回転した楕円」は非対応の既知の制限）。
+      const x = px2mm(obj.left);
+      const y = px2mm(obj.top);
+      const w = px2mm(obj.width * obj.scaleX);
+      const h = px2mm(obj.height * obj.scaleY);
       const hasFill = obj.fill && obj.fill !== 'transparent';
       const hasStroke = obj.stroke && obj.strokeWidth > 0;
       if (!hasFill && !hasStroke) return;
@@ -710,6 +735,7 @@
 
     if (obj.type === 'line') {
       // Line の x1..y2 はローカル(中心原点)座標。calcLinePoints + 変換行列で絶対座標に直す。
+      // （回転していてもこの変換だけで正しい端点が求まる）
       const lp = obj.calcLinePoints();
       const matrix = obj.calcTransformMatrix();
       const p1 = fabric.util.transformPoint({ x: lp.x1, y: lp.y1 }, matrix);
@@ -717,12 +743,6 @@
       doc.setDrawColor(obj.stroke || '#000000');
       doc.setLineWidth(px2mm(obj.strokeWidth || 1));
       doc.line(px2mm(p1.x), px2mm(p1.y), px2mm(p2.x), px2mm(p2.y));
-      return;
-    }
-
-    if (obj.type === 'image') {
-      const dataUrl = obj.toDataURL({ format: 'png' });
-      doc.addImage(dataUrl, 'PNG', x, y, w, h);
       return;
     }
   }
