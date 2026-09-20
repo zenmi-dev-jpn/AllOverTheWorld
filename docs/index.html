@@ -30,6 +30,13 @@
 <main class="app-main">
 
   <aside class="toolbar">
+    <button id="btnUndo" class="tool-btn" title="元に戻す" disabled>
+      <span class="icon">↶</span><span class="label">戻す</span>
+    </button>
+    <button id="btnRedo" class="tool-btn" title="やり直す" disabled>
+      <span class="icon">↷</span><span class="label">進む</span>
+    </button>
+    <div class="tool-sep"></div>
     <button id="addText" class="tool-btn" title="テキストを追加">
       <span class="icon">T</span><span class="label">テキスト</span>
     </button>
@@ -72,6 +79,7 @@
 
     <div class="panel-block" id="propsPanel">
       <h2>プロパティ</h2>
+      <div id="selectedLabel" class="selected-label hidden"></div>
       <p class="empty-msg" id="propsEmpty">オブジェクトを選択してください</p>
 
       <div id="textProps" class="props-group hidden">
@@ -129,6 +137,12 @@
           <label class="small">高さ (mm)<input type="number" id="propH" step="0.5"></label>
         </div>
       </div>
+    </div>
+
+    <div class="panel-block" id="layersPanel">
+      <h2>レイヤー</h2>
+      <p class="hint-sm">上にあるほど手前に表示されます。タップで選択できます。</p>
+      <div id="layersList"></div>
     </div>
 
     <div class="panel-block" id="batchPanel">

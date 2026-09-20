@@ -208,6 +208,30 @@ button, input, select, textarea {
   font-size: 12px;
 }
 
+.selected-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #eef2ff;
+  color: var(--primary);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.selected-label .icon {
+  font-size: 14px;
+  width: 18px;
+  text-align: center;
+}
+
+.tool-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.tool-btn:disabled:active { background: transparent; }
+
 .props-group {
   display: flex;
   flex-direction: column;
@@ -271,6 +295,62 @@ button, input, select, textarea {
   gap: 4px !important;
   font-size: 11px !important;
 }
+
+#layersList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: #f8f9fb;
+  cursor: pointer;
+}
+.layer-row.active {
+  background: #eef2ff;
+  border-color: var(--primary);
+}
+.layer-row .layer-icon {
+  width: 20px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.layer-row.active .layer-icon { color: var(--primary); }
+.layer-row .layer-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.layer-row .layer-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.layer-row .layer-actions button {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.layer-row .layer-actions button:active { background: #e2e5eb; }
+.layer-row .layer-actions button.layer-del:active { background: #fde2e2; color: var(--danger); }
 
 #batchData {
   width: 100%;

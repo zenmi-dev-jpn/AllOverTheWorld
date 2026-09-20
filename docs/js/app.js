@@ -14,6 +14,22 @@
     preserveObjectStacking: true,
   });
 
+  // 「掴んでいるものが分かりにくい」への対応: 選択枠・ハンドルを大きく高コントラストにする
+  // （小さいラベル面をスマホで拡大縮小して編集するため、既定のfabricスタイルでは見づらい）
+  fabric.Object.prototype.set({
+    borderColor: '#2563eb',
+    borderScaleFactor: 2,
+    cornerColor: '#2563eb',
+    cornerStrokeColor: '#ffffff',
+    cornerSize: 16,
+    transparentCorners: false,
+    cornerStyle: 'circle',
+    padding: 4,
+  });
+  canvas.selectionColor = 'rgba(37, 99, 235, 0.08)';
+  canvas.selectionBorderColor = '#2563eb';
+  canvas.selectionLineWidth = 1.5;
+
   // 印刷時に見切れないよう、キャンバス外にはみ出す移動を軽く制限
   canvas.on('object:moving', (e) => {
     const obj = e.target;
@@ -77,6 +93,184 @@
       top: Math.max(0, (canvas.getHeight() - h) / 2),
     };
   }
+
+  // ---------- レイヤー一覧 ----------
+
+  let layerIdCounter = 0;
+  function assignLayerId(obj) {
+    if (!obj.__layerId) obj.__layerId = 'layer' + (++layerIdCounter);
+    return obj;
+  }
+
+  function objectIcon(obj) {
+    switch (obj.type) {
+      case 'textbox': return 'T';
+      case 'rect': return '▭';
+      case 'circle': return '◯';
+      case 'line': return '╱';
+      case 'image': return '🖼';
+      default: return '?';
+    }
+  }
+
+  function objectLabel(obj) {
+    if (obj.type === 'textbox') {
+      const t = (obj.text || '').replace(/\s+/g, ' ').trim();
+      return t ? t.slice(0, 16) : '(空のテキスト)';
+    }
+    switch (obj.type) {
+      case 'rect': return '四角形';
+      case 'circle': return '円';
+      case 'line': return '線';
+      case 'image': return '画像';
+      default: return obj.type;
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+
+  function updateLayersList() {
+    const list = document.getElementById('layersList');
+    if (!list) return;
+    const objs = canvas.getObjects();
+    const activeSet = new Set(canvas.getActiveObjects());
+
+    if (!objs.length) {
+      list.innerHTML = '<p class="empty-msg">オブジェクトがありません</p>';
+      return;
+    }
+
+    list.innerHTML = '';
+    for (let i = objs.length - 1; i >= 0; i--) {
+      const obj = objs[i];
+      assignLayerId(obj);
+      const row = document.createElement('div');
+      row.className = 'layer-row' + (activeSet.has(obj) ? ' active' : '');
+      row.innerHTML = `
+        <span class="layer-icon">${escapeHtml(objectIcon(obj))}</span>
+        <span class="layer-label">${escapeHtml(objectLabel(obj))}</span>
+        <span class="layer-actions">
+          <button type="button" data-act="up" title="前面へ">▲</button>
+          <button type="button" data-act="down" title="背面へ">▼</button>
+          <button type="button" data-act="del" title="削除">✕</button>
+        </span>`;
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('button')) return;
+        canvas.setActiveObject(obj);
+        canvas.requestRenderAll();
+      });
+      row.querySelector('[data-act="up"]').addEventListener('click', () => {
+        canvas.bringForward(obj);
+        canvas.requestRenderAll();
+        updateLayersList();
+        pushHistory();
+      });
+      row.querySelector('[data-act="down"]').addEventListener('click', () => {
+        canvas.sendBackwards(obj);
+        canvas.requestRenderAll();
+        updateLayersList();
+        pushHistory();
+      });
+      row.querySelector('[data-act="del"]').addEventListener('click', () => {
+        canvas.remove(obj);
+        canvas.discardActiveObject();
+        canvas.requestRenderAll();
+      });
+      list.appendChild(row);
+    }
+  }
+
+  // ---------- 元に戻す / やり直す ----------
+
+  let historyStack = [];
+  let historyIndex = -1;
+  let suspendHistory = false;
+  let historyDebounceTimer = null;
+
+  const btnUndo = document.getElementById('btnUndo');
+  const btnRedo = document.getElementById('btnRedo');
+
+  function updateUndoRedoButtons() {
+    btnUndo.disabled = historyIndex <= 0;
+    btnRedo.disabled = historyIndex >= historyStack.length - 1;
+  }
+
+  function pushHistory() {
+    if (suspendHistory) return;
+    clearTimeout(historyDebounceTimer);
+    const state = JSON.stringify(canvas.toJSON());
+    if (historyStack[historyIndex] === state) return;
+    historyStack = historyStack.slice(0, historyIndex + 1);
+    historyStack.push(state);
+    if (historyStack.length > 60) historyStack.shift();
+    historyIndex = historyStack.length - 1;
+    updateUndoRedoButtons();
+  }
+
+  function scheduleHistoryPush() {
+    if (suspendHistory) return;
+    clearTimeout(historyDebounceTimer);
+    historyDebounceTimer = setTimeout(pushHistory, 500);
+  }
+
+  function loadHistoryState(state) {
+    suspendHistory = true;
+    canvas.loadFromJSON(state, () => {
+      canvas.getObjects().forEach((o) => { disableRotation(o); assignLayerId(o); });
+      canvas.discardActiveObject();
+      canvas.requestRenderAll();
+      fitCanvasToWrapper();
+      updatePropsPanel();
+      updateLayersList();
+      suspendHistory = false;
+      updateUndoRedoButtons();
+    });
+  }
+
+  function undo() {
+    if (historyIndex <= 0) return;
+    historyIndex--;
+    loadHistoryState(historyStack[historyIndex]);
+  }
+  function redo() {
+    if (historyIndex >= historyStack.length - 1) return;
+    historyIndex++;
+    loadHistoryState(historyStack[historyIndex]);
+  }
+
+  btnUndo.addEventListener('click', undo);
+  btnRedo.addEventListener('click', redo);
+
+  document.addEventListener('keydown', (e) => {
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'TEXTAREA' || tag === 'INPUT' || isEditingText()) return;
+    const key = e.key.toLowerCase();
+    if (!(e.ctrlKey || e.metaKey)) return;
+    if (key === 'z' && e.shiftKey) { e.preventDefault(); redo(); }
+    else if (key === 'z') { e.preventDefault(); undo(); }
+    else if (key === 'y') { e.preventDefault(); redo(); }
+  });
+
+  // 書き出し直前に「未確定の編集」を確定させる。これをしないと:
+  // ・テキスト編集中（特に日本語IME変換中）にそのままPDF保存すると、直前の入力が反映されないことがある
+  // ・複数選択したまま保存すると、選択グループ内の一時的な相対座標のままPDFに出力され位置がずれる
+  function commitPendingEdits() {
+    const active = canvas.getActiveObject();
+    if (active && active.isEditing && typeof active.exitEditing === 'function') {
+      active.exitEditing();
+    }
+    canvas.discardActiveObject();
+    canvas.requestRenderAll();
+  }
+
+  canvas.on('object:added', () => { updateLayersList(); pushHistory(); });
+  canvas.on('object:removed', () => { updateLayersList(); pushHistory(); });
+  canvas.on('object:modified', () => { pushHistory(); });
+  canvas.on('text:editing:exited', () => { pushHistory(); });
 
   // ---------- オブジェクト追加 ----------
 
@@ -166,11 +360,19 @@
 
   document.getElementById('bringFront').addEventListener('click', () => {
     const obj = canvas.getActiveObject();
-    if (obj) { canvas.bringToFront(obj); canvas.requestRenderAll(); }
+    if (!obj) return;
+    canvas.bringToFront(obj);
+    canvas.requestRenderAll();
+    updateLayersList();
+    pushHistory();
   });
   document.getElementById('sendBack').addEventListener('click', () => {
     const obj = canvas.getActiveObject();
-    if (obj) { canvas.sendToBack(obj); canvas.requestRenderAll(); }
+    if (!obj) return;
+    canvas.sendToBack(obj);
+    canvas.requestRenderAll();
+    updateLayersList();
+    pushHistory();
   });
   document.getElementById('duplicateObj').addEventListener('click', () => {
     const obj = canvas.getActiveObject();
@@ -234,8 +436,10 @@
 
   let syncing = false;
 
-  canvas.on('selection:created', updatePropsPanel);
-  canvas.on('selection:updated', updatePropsPanel);
+  const selectedLabel = document.getElementById('selectedLabel');
+
+  canvas.on('selection:created', () => { updatePropsPanel(); updateLayersList(); });
+  canvas.on('selection:updated', () => { updatePropsPanel(); updateLayersList(); });
   canvas.on('object:modified', updatePropsPanel);
   canvas.on('object:scaling', updatePropsPanel);
   canvas.on('object:moving', updatePropsPanel);
@@ -244,6 +448,8 @@
     textProps.classList.add('hidden');
     shapeProps.classList.add('hidden');
     commonTransform.classList.add('hidden');
+    selectedLabel.classList.add('hidden');
+    updateLayersList();
   });
 
   function updatePropsPanel() {
@@ -253,11 +459,19 @@
       textProps.classList.add('hidden');
       shapeProps.classList.add('hidden');
       commonTransform.classList.toggle('hidden', !obj);
+      if (obj && canvas.getActiveObjects().length > 1) {
+        selectedLabel.textContent = `${canvas.getActiveObjects().length}個を選択中`;
+        selectedLabel.classList.remove('hidden');
+      } else {
+        selectedLabel.classList.add('hidden');
+      }
       return;
     }
     syncing = true;
     propsEmpty.classList.add('hidden');
     commonTransform.classList.remove('hidden');
+    selectedLabel.innerHTML = `<span class="icon">${escapeHtml(objectIcon(obj))}</span><span>${escapeHtml(objectLabel(obj))}</span>`;
+    selectedLabel.classList.remove('hidden');
 
     const isText = obj.type === 'textbox';
     const isLine = obj.type === 'line';
@@ -306,6 +520,8 @@
       fn(obj, e);
       obj.setCoords();
       canvas.requestRenderAll();
+      updateLayersList();
+      scheduleHistoryPush();
     };
   }
 
@@ -348,7 +564,11 @@
     obj.set('scaleY', mm2px(mm) / obj.height);
   }));
 
-  canvas.on('text:changed', () => { if (!syncing) propText.value = canvas.getActiveObject().text; });
+  canvas.on('text:changed', () => {
+    if (!syncing) propText.value = canvas.getActiveObject().text;
+    updateLayersList();
+    scheduleHistoryPush();
+  });
 
   // ---------- 連続印刷（差し込み）データ ----------
 
@@ -525,6 +745,7 @@
   }
 
   document.getElementById('exportSingle').addEventListener('click', () => {
+    commitPendingEdits();
     const doc = buildPdf(null);
     doc.save('label.pdf');
     showToast('PDFを保存しました');
@@ -533,12 +754,14 @@
   exportBatchBtn.disabled = true;
   exportBatchBtn.addEventListener('click', () => {
     if (!batchRows.length) { showToast('先にデータを読み込んでください'); return; }
+    commitPendingEdits();
     const doc = buildPdf(batchRows);
     doc.save('labels-batch.pdf');
     showToast(`${batchRows.length}件のPDFを保存しました`);
   });
 
   document.getElementById('btnShare').addEventListener('click', () => {
+    commitPendingEdits();
     if (batchRows.length) {
       const doc = buildPdf(batchRows);
       sharePdf(doc, 'labels-batch.pdf');
@@ -566,5 +789,8 @@
 
   // 初期状態
   updatePropsPanel();
+  updateLayersList();
+  updateUndoRedoButtons();
   fitCanvasToWrapper();
+  pushHistory(); // 元に戻す操作の起点となる初期状態を記録
 })();
