@@ -172,6 +172,14 @@
 <script src="js/app.js"></script>
 <script>
 if ('serviceWorker' in navigator) {
+  // 新しいバージョンのService Workerが有効になったら、開きっぱなしのタブも
+  // 自動で一度だけ再読み込みして最新版に揃える（手動でキャッシュを消す必要がないように）。
+  let swRefreshed = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (swRefreshed) return;
+    swRefreshed = true;
+    window.location.reload();
+  });
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('service-worker.js').catch(() => {});
   });
